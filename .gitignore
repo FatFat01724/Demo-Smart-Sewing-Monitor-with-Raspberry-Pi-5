@@ -1,0 +1,61 @@
+# Build directories
+build/
+sdkconfig
+sdkconfig.old
+sdkconfig.defaults
+
+# IDE
+.vscode/
+.idea/
+*.code-workspace
+
+# ESP-IDF
+*.pyc
+__pycache__/
+.pytest_cache/
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Compiled files
+*.o
+*.a
+*.elf
+*.bin
+*.map
+
+# CMake
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+build.ninja
+
+# Optional
+*.tmp
+*.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Virtual environment
+venv/
+iot_dashboard/venv/
+
+# Database
+db.sqlite3
+
+# Build
+build/
+*.egg-info/
+dist/
+*.log
+
+# Data
+*.csv

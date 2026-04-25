@@ -1,0 +1,932 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Sewing Machines Monitor Center - AIoT Dashboard</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token }}">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --dark-bg: #0d1117;
+            --dark-card: #161b22;
+            --dark-border: #30363d;
+            --status-green: #3fb950;
+            --status-yellow: #d29922;
+            --status-red: #f85149;
+            --text-primary: #e6edf3;
+            --text-secondary: #8b949e;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            background-color: var(--dark-bg);
+            color: var(--text-primary);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        
+        .container-fluid {
+            padding: 20px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+            border-bottom: 2px solid var(--dark-border);
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: var(--text-primary);
+            margin-bottom: 10px;
+        }
+        
+        .header p {
+            color: var(--text-secondary);
+            font-size: 1rem;
+        }
+        
+        /* Warning Alert */
+        .alert-warning-custom {
+            background-color: rgba(212, 153, 0, 0.15);
+            border: 1px solid #d29922;
+            color: #ffd700;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-warning-custom strong {
+            color: #ffd700;
+        }
+        
+        .alert-banner {
+            position: fixed;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: calc(100% - 40px);
+            max-width: 1200px;
+            background: rgba(194, 130, 15, 0.95);
+            color: #fff;
+            border: 1px solid #ffd700;
+            border-radius: 8px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            z-index: 9999;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.4);
+        }
+        
+        .alert-banner-content {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+            font-size: 0.95rem;
+        }
+        
+        .alert-item {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 4px;
+        }
+        
+        .alert-close {
+            border: none;
+            background: transparent;
+            color: #fff;
+            font-weight: bold;
+            font-size: 18px;
+            cursor: pointer;
+        }
+        
+        /* Machine Card */
+        .machine-card {
+            background-color: var(--dark-card);
+            border: 2px solid var(--dark-border);
+            border-radius: 12px;
+            transition: all 0.3s ease;
+            height: 100%;
+            overflow: hidden;
+            cursor: pointer;
+        }
+        
+        .machine-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            border-color: var(--text-secondary);
+        }
+        
+        /* Status indicator - LEFT BORDER */
+        .machine-card.status-running {
+            border-left: 5px solid var(--status-green);
+        }
+        
+        .machine-card.status-slow {
+            border-left: 5px solid var(--status-yellow);
+        }
+        
+        .machine-card.status-idle {
+            border-left: 5px solid var(--status-yellow);
+            opacity: 0.7;
+        }
+        
+        .machine-card.status-warning {
+            border-left: 5px solid var(--status-red);
+            animation: pulse-red 1.5s infinite;
+        }
+        
+        @keyframes pulse-red {
+            0%, 100% { box-shadow: 0 0 0 0 rgba(248, 81, 73, 0.7); }
+            50% { box-shadow: 0 0 0 10px rgba(248, 81, 73, 0); }
+        }
+        
+        .machine-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 15px;
+            text-align: center;
+            border-bottom: 1px solid var(--dark-border);
+        }
+        
+        .machine-name {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin: 0;
+        }
+        
+        .machine-status {
+            font-size: 0.85rem;
+            margin-top: 5px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+        }
+        
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        
+        .status-dot.green { background-color: var(--status-green); }
+        .status-dot.yellow { background-color: var(--status-yellow); }
+        .status-dot.red { background-color: var(--status-red); }
+        
+        .machine-body {
+            padding: 12px;
+        }
+        
+        .metric {
+            margin-bottom: 12px;
+        }
+        
+        .metric-label {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+        }
+        
+        .metric-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--text-primary);
+        }
+        
+        .metric-small {
+            font-size: 1.2rem;
+            color: var(--status-green);
+        }
+        
+        .progress-bar-custom {
+            background-color: var(--status-yellow);
+            height: 8px;
+            border-radius: 4px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: #3fb950;
+            transition: width 0.3s ease;
+        }
+        
+        .pattern-tag {
+            display: inline-block;
+            background-color: rgba(102, 126, 234, 0.2);
+            color: #667eea;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            margin-top: 8px;
+        }
+        
+        .metric-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 15px;
+        }
+        
+        .metric-half {
+            margin-bottom: 0 !important;
+        }
+        
+        .timestamp {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 10px;
+            text-align: center;
+        }
+        
+        /* Stats Section */
+        .stats-section {
+            background-color: var(--dark-card);
+            border: 1px solid var(--dark-border);
+            border-radius: 12px;
+            padding: 30px;
+            margin-top: 40px;
+        }
+        
+        .stats-title {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-bottom: 25px;
+            color: var(--text-primary);
+        }
+        
+        .stat-box {
+            text-align: center;
+            padding: 20px;
+            border-radius: 8px;
+            background-color: rgba(102, 126, 234, 0.1);
+            border: 1px solid rgba(102, 126, 234, 0.3);
+        }
+        
+        .stat-number {
+            font-size: 2.5rem;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+        }
+        
+        .offline-card {
+            background-color: var(--dark-card);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 10px;
+            padding: 30px 20px;
+            color: var(--text-secondary);
+        }
+        
+        .offline-card i {
+            font-size: 2rem;
+            color: var(--text-secondary);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="header" style="display: flex; align-items: center; justify-content: center; gap: 15px;">
+        <img src="https://hcmut.edu.vn/img/nhanDienThuongHieu/01_logobachkhoasang.png" alt="BK TP.HCM Logo" style="width: 200px; height: auto; border-radius: 8px; padding: 2px;" />
+        <div>
+            <h1>Thesis Capstone | Sewing Machines Monitor Center</h1>
+            <p>Author: Phat Tran Kim | Thanh Nguyen Huu</p>
+        </div>
+    </div>
+
+    <!-- Statistics Section -->
+    <div class="stats-section">
+        <div class="row">
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <div class="stat-number" id="active-machines">{{ active_machines }}/{{ total_machines }}</div>
+                    <div class="stat-label">Active Machines</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #3fb950;" id="avg-oee">{{ avg_oee }}%</div>
+                    <div class="stat-label">Average OEE</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #58a6ff;" id="avg-spm">{{ avg_spm }}</div>
+                    <div class="stat-label">Average SPM</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="stat-box">
+                    <div class="stat-number" style="color: #ffd700;" id="total-stitches">{{ total_stitches }}</div>
+                    <div class="stat-label">Total Stitches</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    <hr style="border: 0; border-top: 2px solid var(--dark-border); margin: 40px 0;">
+    <!-- Warnings Alert Banner -->
+    {% if warnings %}
+    <div class="alert-banner" id="warningBanner">
+        <div class="alert-banner-content">
+            <span><i class="bi bi-exclamation-triangle-fill"></i> ALERTS:</span>
+            {% for alert in warnings %}
+            <span class="alert-item">• {{ alert.machine }}: {{ alert.issue }}</span>
+            {% endfor %}
+        </div>
+        <button class="alert-close" onclick="document.getElementById('warningBanner').style.display='none';">✕</button>
+    </div>
+    {% endif %}
+
+    <!-- Machine Cards Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4" id="machine-cards-container">
+        {% for r in readings %}
+        <div class="col">
+            {% if r %}
+            <div class="card machine-card status-{{ r.get_status }}" onclick="openMachineModal('{{ r.sensor_name }}')">
+                <div class="machine-header">
+                    <h5 class="machine-name">{{ r.sensor_name }}</h5>
+                    <div class="machine-status">
+                        <span class="status-dot {% if r.get_status == 'running' %}green{% elif r.get_status == 'warning' %}red{% else %}yellow{% endif %}"></span>
+                        <span>
+                            {% if r.get_status == 'running' %}Running{% elif r.get_status == 'warning' %}Warning{% elif r.get_status == 'idle' %}Idle{% else %}Slow{% endif %}
+                        </span>
+                    </div>
+                </div>
+                
+                                <div class="machine-body">
+                    <!-- Row 1: Stitch Count + Stage -->
+                    <div class="metric-row">
+                        <div class="metric metric-half">
+                            <div class="metric-label"><i class="bi bi-hexagon-fill"></i> Stitch Count</div>
+                            <div class="metric-value" style="color: #3fb950;">{{ r.stitch_count }}</div>
+                        </div>
+                        <div class="metric metric-half">
+                            <div class="metric-label"><i class="bi bi-diagram-3"></i> Stage</div>
+                            <div>
+                                <span class="pattern-tag">{{ r.pattern_name }}</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 2: SPM + Anomaly Scores -->
+                    <div class="metric-row">
+                        <div class="metric metric-half">
+                            <div class="metric-label"><i class="bi bi-speedometer"></i> SPM</div>
+                            <div class="metric-value metric-small">{{ r.spm }}/min</div>
+                        </div>
+                        <div class="metric metric-half" style="border-top: 1px solid var(--dark-border); padding-top: 10px;">
+                            <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">
+                                <i class="bi bi-exclamation-circle"></i> Anomaly
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem;">
+                                <div>
+                                    <span style="color: var(--text-secondary);">Vib:</span>
+                                    <span style="font-weight: bold; color: {% if r.evib_var|default:0 > 0.7 %}var(--status-red){% else %}var(--status-green){% endif %};">
+                                        {{ r.evib_var|default:0|floatformat:2 }}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span style="color: var(--text-secondary);">Cur:</span>
+                                    <span style="font-weight: bold; color: {% if r.ecur_var|default:0 > 0.7 %}var(--status-red){% else %}var(--status-green){% endif %};">
+                                        {{ r.ecur_var|default:0|floatformat:2 }}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 3: OEE (Full Width) -->
+                    <div class="metric">
+                        <div class="metric-label"><i class="bi bi-graph-up"></i> Run ratio</div>
+                        <div style="font-size: 1rem; color: var(--text-primary); margin-bottom: 5px;">{{ r.run_ratio|floatformat:2 }}%</div>
+                        <div class="progress-bar-custom">
+                            <div class="progress-fill" style="width: {{ r.run_ratio|floatformat:2 }}%"></div>
+                        </div>
+                    </div>
+                    
+                    <!-- Row 4: Timestamp (Bottom) -->
+                    <div class="timestamp">
+                        <i class="bi bi-clock-history"></i> {{ r.timestamp|date:"H:i:s d/m/Y" }}
+                    </div>
+                </div>
+            </div>
+            {% else %}
+            <div class="card machine-card status-idle">
+                <div class="machine-header">
+                    <h5 class="machine-name">Sewing Machine {{ forloop.counter }}</h5>
+                </div>
+                <div class="machine-body">
+                    <div class="offline-card">
+                        <i class="bi bi-wifi-off"></i>
+                        <div><strong>Machine Offline</strong></div>
+                        <div>No data received</div>
+                    </div>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- AI Chatbot -->
+<div id="chatbot-container">
+    <div id="chatbot-toggle" onclick="toggleChatbot()">
+        <i class="bi bi-robot"></i>
+    </div>
+    <div id="chatbot-window">
+        <div id="chatbot-header">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <img src="{% static 'images/Moon.png' %}" alt="Bot Icon" class="chatbot-header-icon">
+                <span>AI Assistant</span>
+            </div>
+            <button onclick="toggleChatbot()">×</button>
+        </div>
+        <div id="chatbot-messages"></div>
+        <div id="chatbot-input">
+            <input type="text" id="user-input" placeholder="Hỏi tôi về máy may..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Gửi</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal fade" id="graphModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content" style="background-color: var(--dark-card); border: 1px solid var(--dark-border); color: var(--text-primary);">
+            <div class="modal-header" style="border-bottom: 1px solid var(--dark-border);">
+                <h5 class="modal-title" id="modalMachineName">Machine Realtime Monitor</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <canvas id="realtimeChart" style="width: 100%; height: 350px;"></canvas>
+            </div>
+            <div class="modal-footer" style="border-top: 1px solid var(--dark-border);">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+let chatbotOpen = false;
+let myChart = null;
+let currentMachineId = null;
+let graphModalObj = null; // Thêm biến này để quản lý modal tốt hơn
+
+function toggleChatbot() {
+    const container = document.getElementById('chatbot-container');
+    chatbotOpen = !chatbotOpen;
+    container.classList.toggle('open', chatbotOpen);
+}
+
+function handleKeyPress(event) {
+    if (event.key === 'Enter') {
+        sendMessage();
+    }
+}
+
+async function sendMessage() {
+    const input = document.getElementById('user-input');
+    const message = input.value.trim();
+    if (!message) return;
+    
+    addMessage('user', message);
+    input.value = '';
+    
+    try {
+        const response = await fetch('/api/chatbot/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
+            },
+            body: JSON.stringify({ message: message })
+        });
+        const data = await response.json();
+        addMessage('bot', data.response);
+    } catch (error) {
+        addMessage('bot', 'Lỗi kết nối. Vui lòng thử lại.');
+    }
+}
+
+function addMessage(sender, text) {
+    const messages = document.getElementById('chatbot-messages');
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}`;
+    
+    // Sử dụng thư viện marked để chuyển text (markdown) thành HTML
+    // Điều này sẽ biến các ký tự của AI thành Bảng và Tiêu đề đẹp
+    const formattedText = sender === 'bot' ? marked.parse(text) : text;
+    
+    messageDiv.innerHTML = `<div class="message-content">${formattedText}</div>`;
+    messages.appendChild(messageDiv);
+    
+    // Tự động cuộn xuống tin nhắn mới nhất
+    messages.scrollTop = messages.scrollHeight;
+}
+
+function getCSRFToken() {
+    return document.querySelector('meta[name="csrf-token"]').getAttribute('content');
+}
+
+// Auto-update dashboard data every 3 seconds
+setInterval(updateDashboard, 3000);
+
+function updateDashboard() {
+    fetch('/dashboard-data/')
+        .then(response => response.json())
+        .then(data => {
+            // 1. Cập nhật các con số tổng quát
+            document.getElementById('active-machines').innerText = `${data.active_machines}/${data.total_machines}`;
+            document.getElementById('avg-oee').innerText = `${data.avg_oee || 0}%`;
+            document.getElementById('avg-spm').innerText = data.avg_spm;
+            document.getElementById('total-stitches').innerText = data.total_stitches;
+
+            // 2. Cập nhật từng machine card
+            const container = document.getElementById('machine-cards-container');
+            const existingCards = container.querySelectorAll('.col');
+            
+            data.readings.forEach((r, index) => {
+                let cardElement;
+                if (existingCards[index]) {
+                    cardElement = existingCards[index].querySelector('.machine-card');
+                } else {
+                    const colDiv = document.createElement('div');
+                    colDiv.className = 'col';
+                    container.appendChild(colDiv);
+                    cardElement = document.createElement('div');
+                    cardElement.className = 'card machine-card';
+                    colDiv.appendChild(cardElement);
+                }
+                
+                if (r) {
+                    const statusClass = r.status === 'warning' ? 'red' : (r.status === 'running' ? 'green' : 'yellow');
+                    const statusText = r.status === 'running' ? 'Running' : (r.status === 'warning' ? 'Warning' : (r.status === 'idle' ? 'Idle' : 'Slow'));
+                    
+                    cardElement.className = `card machine-card status-${r.status}`;
+                    // Gán sự kiện click để mở popup
+                    cardElement.onclick = function() { openMachineModal(r.sensor_name); };
+                    
+                    cardElement.innerHTML = `
+                        <div class="machine-header">
+                            <h5 class="machine-name">${r.sensor_name}</h5>
+                            <div class="machine-status">
+                                <span class="status-dot ${statusClass}"></span>
+                                <span>${statusText}</span>
+                            </div>
+                        </div>
+                        <div class="machine-body">
+                            <div class="metric-row">
+                                <div class="metric metric-half">
+                                    <div class="metric-label"><i class="bi bi-hexagon-fill"></i> Stitch Count</div>
+                                    <div class="metric-value" style="color: #3fb950;">${r.stitch_count}</div>
+                                </div>
+                                <div class="metric metric-half">
+                                    <div class="metric-label"><i class="bi bi-diagram-3"></i> Stage</div>
+                                    <div><span class="pattern-tag">${r.pattern_name}</span></div>
+                                </div>
+                            </div>
+                            <div class="metric-row">
+                                <div class="metric metric-half">
+                                    <div class="metric-label"><i class="bi bi-speedometer"></i> SPM</div>
+                                    <div class="metric-value metric-small">${r.spm}/min</div>
+                                </div>
+                                <div class="metric metric-half" style="border-top: 1px solid var(--dark-border); padding-top: 10px;">
+                                    <div style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 5px;">
+                                        <i class="bi bi-exclamation-circle"></i> Anomaly
+                                    </div>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; font-size: 0.85rem;">
+                                        <div>Vib: <span style="color: ${r.evib_var > 0.7 ? 'var(--status-red)' : 'var(--status-green)'}; font-weight: bold;">${parseFloat(r.evib_var).toFixed(2)}</span></div>
+                                        <div>Cur: <span style="color: ${r.ecur_var > 0.7 ? 'var(--status-red)' : 'var(--status-green)'}; font-weight: bold;">${parseFloat(r.ecur_var).toFixed(2)}</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="metric">
+                                <div class="metric-label"><i class="bi bi-graph-up"></i> Run ratio</div>
+                                <div style="font-size: 1rem; color: var(--text-primary); margin-bottom: 5px;">${parseFloat(r.run_ratio).toFixed(2)}%</div>
+                                <div class="progress-bar-custom">
+                                    <div class="progress-fill" style="width: ${parseFloat(r.run_ratio).toFixed(2)}%"></div>
+                                </div>
+                            </div>
+                            <div class="timestamp">
+                                <i class="bi bi-clock-history"></i> ${new Date(r.timestamp).toLocaleString('vi-VN')}
+                            </div>
+                        </div>`;
+                }
+            });
+
+            // 3. Cập nhật Đồ thị nếu Modal đang mở
+            if (currentMachineId && myChart) {
+                const activeData = data.readings.find(m => m && m.sensor_name === currentMachineId);
+                if (activeData) {
+                    // Đẩy Current
+                    myChart.data.datasets[0].data.shift();
+                    myChart.data.datasets[0].data.push(parseFloat(activeData.ecur_var) || 0);
+                    
+                    // Đẩy Vibration
+                    myChart.data.datasets[1].data.shift();
+                    myChart.data.datasets[1].data.push(parseFloat(activeData.evib_var) || 0);
+                    
+                    myChart.update('none'); // Update ngay lập tức
+                }
+            }
+        })
+        .catch(err => console.error('Dashboard Update Error:', err));
+}
+
+function initChart() {
+    const ctx = document.getElementById('realtimeChart').getContext('2d');
+    myChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            // Thay đổi ở đây: Tạo mảng 20 nhãn rỗng để đồ thị biết có 20 điểm
+            labels: Array.from({length: 20}, (_, i) => ""), 
+            datasets: [
+                {
+                    label: 'Current (A)',
+                    borderColor: '#3fb950',
+                    backgroundColor: 'rgba(63, 185, 80, 0.1)', // Thêm chút màu nền cho đẹp
+                    data: Array(20).fill(0),
+                    tension: 0.4,
+                    fill: true
+                },
+                {
+                    label: 'Vibration',
+                    borderColor: '#f85149',
+                    backgroundColor: 'rgba(248, 81, 73, 0.1)',
+                    data: Array(20).fill(0),
+                    tension: 0.4,
+                    fill: true
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false, // Để đồ thị lấp đầy modal body
+            scales: {
+                y: { 
+                    beginAtZero: true, 
+                    max: 1.2, // Cố định ngưỡng để nhìn dao động rõ hơn (vì Current/Vib thường < 1.0)
+                    grid: { color: '#30363d' },
+                    ticks: { color: '#8b949e' }
+                },
+                x: { 
+                    grid: { display: false },
+                    ticks: { display: false } // Ẩn nhãn trục X cho sạch
+                }
+            },
+            plugins: { 
+                legend: { labels: { color: '#e6edf3' } } 
+            },
+            animation: { duration: 0 } // Tắt animation khi cập nhật để mượt hơn
+        }
+    });
+}
+
+// Gọi khởi tạo Chart khi trang load
+initChart();
+
+// Hàm mở Modal khi click vào Card
+async function openMachineModal(machineName) {
+    console.log("Fetching history for:", machineName);
+    currentMachineId = machineName;
+    document.getElementById('modalMachineName').innerText = `Realtime Monitor: ${machineName}`;
+
+    if (!graphModalObj) {
+        graphModalObj = new bootstrap.Modal(document.getElementById('graphModal'));
+    }
+    graphModalObj.show();
+
+    try {
+        const response = await fetch(`/api/machine-history/${machineName}/`);
+        const data = await response.json();
+
+        if (myChart) {
+            // Cập nhật nhãn trục X
+            myChart.data.labels = data.ecur_values.map(() => "");
+            myChart.data.datasets[0].data = data.ecur_values;
+            myChart.data.datasets[1].data = data.evib_values; 
+            
+            myChart.update();
+        }
+    } catch (error) {
+        console.error('Lỗi khi lấy lịch sử máy:', error);
+    }
+}
+
+</script>
+
+<style>
+/* Chatbot Styles */
+#chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 10000;
+}
+
+#chatbot-toggle {
+width: 60px;
+    height: 60px;
+    /* Đổi từ màu gradient sang logo */
+    background-image: url("{% static 'images/Moon.png' %}");
+    background-size: 80%; 
+    background-position: center;
+    background-repeat: no-repeat;
+    background-color: #fff;
+    
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+    transition: all 0.3s ease;
+    border: 2px solid var(--dark-border);
+}
+
+#chatbot-toggle:hover {
+    transform: scale(1.1);
+}
+
+#chatbot-window {
+    position: absolute;
+    bottom: 80px;
+    right: 0;
+    width: 350px;
+    height: 500px;
+    background: var(--dark-card);
+    border: 1px solid var(--dark-border);
+    border-radius: 12px;
+    display: none;
+    flex-direction: column;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+}
+
+#chatbot-container.open #chatbot-window {
+    display: flex;
+}
+
+#chatbot-header {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 15px;
+    border-radius: 12px 12px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-weight: bold;
+}
+
+.chatbot-header-icon {
+    width: 30px;
+    height: 30px;
+    border-radius: 50%; 
+    border: 2px solid rgba(255, 255, 255, 0.5); 
+    object-fit: cover; 
+}
+
+#chatbot-header button {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 20px;
+    cursor: pointer;
+}
+
+#chatbot-messages {
+    flex: 1;
+    padding: 15px;
+    overflow-y: auto;
+    background: var(--dark-bg);
+}
+
+.chat-message {
+    margin-bottom: 10px;
+}
+
+.chat-message.user {
+    text-align: right;
+}
+
+.message-content {
+    display: inline-block;
+    max-width: 80%;
+    padding: 8px 12px;
+    border-radius: 18px;
+    word-wrap: break-word;
+}
+
+.chat-message.user .message-content {
+    background: #667eea;
+    color: white;
+}
+
+#chatbot-input {
+    border-top: 1px solid var(--dark-border);
+    padding: 15px;
+    display: flex;
+    gap: 10px;
+}
+
+#chatbot-input input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--dark-border);
+    border-radius: 20px;
+    background: var(--dark-bg);
+    color: var(--text-primary);
+}
+
+#chatbot-input button {
+    padding: 8px 15px;
+    background: #667eea;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+#chatbot-input button:hover {
+    background: #5a67d8;
+}
+
+.message-content h3 {
+    font-size: 1.1rem;
+    color: #667eea;
+    margin-top: 10px;
+    border-bottom: 1px solid var(--dark-border);
+    padding-bottom: 5px;
+}
+
+.message-content table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 10px 0;
+    font-size: 0.85rem;
+    background-color: #0d1117;
+    border: 1px solid var(--dark-border);
+}
+
+.message-content th {
+    background-color: #30363d;
+    color: #fff;
+    padding: 8px;
+    text-align: center;
+}
+
+.message-content td {
+    border: 1px solid var(--dark-border);
+    padding: 6px;
+    text-align: center;
+}
+
+/* Làm cho các dấu chấm tròn (list) hiện ra */
+.message-content ul, .message-content ol {
+    padding-left: 20px;
+    margin-bottom: 10px;
+}
+
+/* Đảm bảo tin nhắn bot có màu nền khác biệt một chút */
+.chat-message.bot .message-content {
+    background-color: #21262d;
+    border: 1px solid var(--dark-border);
+    border-radius: 12px;
+}
+
+#realtimeChart {
+    min-height: 300px;
+    width: 100% !important;
+}
+</style>
+</body>
+</html>
